@@ -124,15 +124,14 @@ impl DragDropUi {
         items: impl Iterator<Item = &'a T>,
         mut item_ui: impl FnMut(&mut Ui, Handle, usize, &T) -> (),
     ) -> DragDropResponse {
+        // internal list representation shifted according to previous hover state
         let mut list = items.enumerate().collect::<Vec<_>>();
-
-        // todo live update? or just internal?
         if let (Some(hovering_idx), Some(source_idx)) = (self.hovering_idx, self.source_idx) {
             shift_vec(source_idx, hovering_idx, &mut list);
         }
-
         let mut list_rects = Vec::with_capacity(list.len());
 
+        // draw list entries
         DragDropUi::drop_target(ui, |ui| {
             list.iter_mut().for_each(|(idx, item)| {
                 // get rect of list entry
@@ -148,50 +147,12 @@ impl DragDropUi {
             });
         });
 
+        // determine hovering index
         if ui.memory().is_anything_being_dragged() {
-            // pointer position
-            let pointer_pos = ui.input().pointer.hover_pos();
-            if let Some(pointer_pos) = pointer_pos {
-                let pointer_pos = if let Some(delta) = self.drag_delta {
-                    pointer_pos + delta
-                } else {
-                    pointer_pos
-                };
-
-                // find the closest entry to the pointer position
-                // (absolute y distance to top of entry, new entry index, old entry index, entry rect)
-                let mut closest: Option<(f32, usize, usize, Rect)> = None;
-                let _hovering = list_rects.into_iter().enumerate().for_each(
-                    |(new_idx, (entry_idx, entry_rect))| {
-                        let entry_dist = (entry_rect.top() - pointer_pos.y).abs(); // todo use center().y instead???
-                        let val = (entry_dist, new_idx, entry_idx, entry_rect);
-
-                        if let Some((closest_dist, ..)) = closest {
-                            if closest_dist > entry_dist {
-                                closest = Some(val)
-                            }
-                        } else {
-                            closest = Some(val)
-                        }
-                    },
-                );
-
-                if let Some((_dist, new_idx, _original_idx, rect)) = closest {
-                    // determine hovering index
-                    let mut i = if pointer_pos.y > rect.center().y {
-                        new_idx + 1
-                    } else {
-                        new_idx
-                    };
-                    if let Some(idx) = self.source_idx {
-                        if i > idx && i < list.len() {
-                            i += 1;
-                        }
-                    }
-                    self.hovering_idx = Some(i);
-                }
+            if let Some(hovering_idx) = self.determine_hovering_index(ui, list.len(), list_rects) {
+                self.hovering_idx = Some(hovering_idx);
             }
-        } // (if anything being dragged)
+        }
 
         // return dragging state
         if let (Some(target_idx), Some(source_idx)) = (self.hovering_idx, self.source_idx) {
@@ -222,8 +183,8 @@ impl DragDropUi {
         }
     }
 
-    /// Draw the widget using `widget_body` either inline with the gui or hovering depending on if
-    /// its being dragged, then returns its rect.
+    /// Draw the widget for an item using `widget_body` either inline with the gui or hovering depending
+    /// on if its being dragged, then returns its rect.
     fn drag_source(
         &mut self,
         ui: &mut Ui,
@@ -289,5 +250,59 @@ impl DragDropUi {
         let (_rect, response) = ui.allocate_at_least(outer_rect.size(), Sense::hover());
 
         InnerResponse::new(ret, response)
+    }
+
+    fn determine_hovering_index(
+        &self,
+        ui: &Ui,
+        list_len: usize,
+        list_rects: Vec<(usize, Rect)>,
+    ) -> Option<usize> {
+        let mut hovering_index: Option<usize> = None;
+
+        // pointer position
+        let pointer_pos = ui.input().pointer.hover_pos();
+        if let Some(pointer_pos) = pointer_pos {
+            let pointer_pos = if let Some(delta) = self.drag_delta {
+                pointer_pos + delta
+            } else {
+                pointer_pos
+            };
+
+            // find the closest entry to the pointer position
+            // (absolute y distance to top of entry, new entry index, old entry index, entry rect)
+            let mut closest: Option<(f32, usize, usize, Rect)> = None;
+            let _hovering = list_rects.into_iter().enumerate().for_each(
+                |(new_idx, (entry_idx, entry_rect))| {
+                    let entry_dist = (entry_rect.top() - pointer_pos.y).abs(); // todo use center().y instead???
+                    let val = (entry_dist, new_idx, entry_idx, entry_rect);
+
+                    if let Some((closest_dist, ..)) = closest {
+                        if closest_dist > entry_dist {
+                            closest = Some(val)
+                        }
+                    } else {
+                        closest = Some(val)
+                    }
+                },
+            );
+
+            if let Some((_dist, new_idx, _original_idx, rect)) = closest {
+                // determine hovering index
+                let mut i = if pointer_pos.y > rect.center().y {
+                    new_idx + 1
+                } else {
+                    new_idx
+                };
+                if let Some(idx) = self.source_idx {
+                    if i > idx && i < list_len {
+                        i += 1;
+                    }
+                }
+                hovering_index = Some(i);
+            }
+        }
+
+        return hovering_index;
     }
 }
