@@ -132,10 +132,11 @@ impl DragDropUi {
         let mut list_rects = Vec::with_capacity(list.len());
 
         // draw list entries
-        DragDropUi::drop_target(ui, |ui| {
+        let this_list_is_drop_target = self.hovering_idx.is_some();
+        DragDropUi::draw_list(ui, this_list_is_drop_target, |ui| {
             list.iter_mut().for_each(|(idx, item)| {
                 // get rect of list entry
-                let rect = self.drag_source(ui, item.id(), |ui, handle| {
+                let rect = self.draw_item(ui, item.id(), |ui, handle| {
                     item_ui(ui, handle, *idx, item);
                 });
                 list_rects.push((*idx, rect));
@@ -149,9 +150,7 @@ impl DragDropUi {
 
         // determine hovering index
         if ui.memory().is_anything_being_dragged() {
-            if let Some(hovering_idx) = self.determine_hovering_index(ui, list.len(), list_rects) {
-                self.hovering_idx = Some(hovering_idx);
-            }
+            self.hovering_idx = self.determine_hovering_index(ui, list.len(), list_rects);
         }
 
         // return dragging state
@@ -183,14 +182,9 @@ impl DragDropUi {
         }
     }
 
-    /// Draw the widget for an item using `widget_body` either inline with the gui or hovering depending
+    /// Draw the widget for an item using `item_body` either inline with the list or hovering depending
     /// on if its being dragged, then returns its rect.
-    fn drag_source(
-        &mut self,
-        ui: &mut Ui,
-        id: Id,
-        item_body: impl FnOnce(&mut Ui, Handle),
-    ) -> Rect {
+    fn draw_item(&mut self, ui: &mut Ui, id: Id, item_body: impl FnOnce(&mut Ui, Handle)) -> Rect {
         let is_being_dragged = ui.memory().is_being_dragged(id);
 
         if !is_being_dragged {
@@ -235,8 +229,19 @@ impl DragDropUi {
         }
     }
 
-    // todo what this for??
-    fn drop_target<R>(ui: &mut Ui, item_body: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
+    /// Draw the list body and other stuff todo
+    fn draw_list<R>(
+        ui: &mut Ui,
+        is_drop_target: bool,
+        list_body: impl FnOnce(&mut Ui) -> R,
+    ) -> InnerResponse<R> {
+        // determine list coloring depending on wherever this list is currently the drop target
+        let style = if is_drop_target {
+            ui.visuals().widgets.active
+        } else {
+            ui.visuals().widgets.inactive
+        };
+
         let margin = Vec2::splat(4.0);
 
         let outer_rect_bounds = ui.available_rect_before_wrap();
@@ -244,7 +249,7 @@ impl DragDropUi {
 
         let mut content_ui = ui.child_ui(inner_rect, *ui.layout());
 
-        let ret = item_body(&mut content_ui);
+        let ret = list_body(&mut content_ui);
         let outer_rect =
             Rect::from_min_max(outer_rect_bounds.min, content_ui.min_rect().max + margin);
         let (_rect, response) = ui.allocate_at_least(outer_rect.size(), Sense::hover());
