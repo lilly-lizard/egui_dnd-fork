@@ -1,5 +1,6 @@
-use egui;
-use egui::{CursorIcon, Id, InnerResponse, LayerId, Order, Pos2, Rect, Sense, Ui, Vec2};
+use egui::{
+    self, CursorIcon, Id, InnerResponse, LayerId, Order, Pos2, Rect, Sense, Shape, Ui, Vec2,
+};
 use std::hash::Hash;
 
 use crate::utils::shift_vec;
@@ -229,12 +230,25 @@ impl DragDropUi {
         }
     }
 
-    /// Draw the list body and other stuff todo
+    /// Draw the list body and todo what other stuff?
     fn draw_list<R>(
         ui: &mut Ui,
         is_drop_target: bool,
         list_body: impl FnOnce(&mut Ui) -> R,
     ) -> InnerResponse<R> {
+        let margin = Vec2::splat(4.0);
+
+        let outer_rect_bounds = ui.available_rect_before_wrap();
+        let inner_rect = outer_rect_bounds.shrink2(margin);
+        let where_to_put_background = ui.painter().add(Shape::Noop);
+
+        let mut content_ui = ui.child_ui(inner_rect, *ui.layout());
+
+        let ret = list_body(&mut content_ui);
+        let outer_rect =
+            Rect::from_min_max(outer_rect_bounds.min, content_ui.min_rect().max + margin);
+        let (rect, response) = ui.allocate_at_least(outer_rect.size(), Sense::hover());
+
         // determine list coloring depending on wherever this list is currently the drop target
         let style = if is_drop_target {
             ui.visuals().widgets.active
@@ -242,17 +256,15 @@ impl DragDropUi {
             ui.visuals().widgets.inactive
         };
 
-        let margin = Vec2::splat(4.0);
-
-        let outer_rect_bounds = ui.available_rect_before_wrap();
-        let inner_rect = outer_rect_bounds.shrink2(margin);
-
-        let mut content_ui = ui.child_ui(inner_rect, *ui.layout());
-
-        let ret = list_body(&mut content_ui);
-        let outer_rect =
-            Rect::from_min_max(outer_rect_bounds.min, content_ui.min_rect().max + margin);
-        let (_rect, response) = ui.allocate_at_least(outer_rect.size(), Sense::hover());
+        ui.painter().set(
+            where_to_put_background,
+            epaint::RectShape {
+                rounding: style.rounding,
+                fill: style.bg_fill,
+                stroke: style.bg_stroke,
+                rect,
+            },
+        );
 
         InnerResponse::new(ret, response)
     }

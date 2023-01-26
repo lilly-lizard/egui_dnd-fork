@@ -4,7 +4,7 @@ Fork from [egui_dnd](https://github.com/lucasmerlin/egui_dnd) with tweaks for th
 - comments and variable renaming (to help me as I was reading through the code)
 - `DragDropUi::ui` updated to only require immutable reference to list and also include the list index in the arg `item_ui` 
 
-Note: I also found a (more expimentatal) implimentation of this idea [here](https://github.com/emilk/egui/discussions/1530).
+Note: I also found a more expimentatal implimentation of this idea [here](https://github.com/emilk/egui/discussions/1530).
 
 # egui_dnd
 
