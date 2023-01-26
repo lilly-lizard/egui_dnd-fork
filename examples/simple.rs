@@ -41,11 +41,11 @@ impl App for DnDApp {
             let response =
                 // make sure this is called in a vertical layout.
                 // Horizontal sorting is not supported yet.
-                self.dnd.ui::<ItemType>(ui, self.items.iter_mut(), |item, ui, handle| {
+                self.dnd.ui::<ItemType>(ui, self.items.iter(), |ui, handle, index, item| {
                     ui.horizontal(|ui| {
                         // Anything in the handle can be used to drag the item
                         handle.ui(ui, item, |ui| {
-                            ui.label("grab");
+                            ui.label(format!("{} grab", index));
                         });
 
                         ui.label(&item.name);

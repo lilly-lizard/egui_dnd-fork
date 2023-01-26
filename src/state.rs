@@ -33,7 +33,7 @@ pub struct DragDropResponse {
 pub struct DragDropUi {
     source_idx: Option<usize>,
     hovering_idx: Option<usize>,
-
+    /// Pointer position relative to the origin of the dragged widget when dragging began
     drag_delta: Option<Vec2>,
 }
 
@@ -44,27 +44,35 @@ pub struct Handle<'a> {
 
 impl<'a> Handle<'a> {
     pub fn ui<T: DragDropItem>(self, ui: &mut Ui, item: &T, contents: impl FnOnce(&mut Ui)) {
-        let u = ui.scope(contents);
+        // add contents to ui
+        let added_contents = ui.scope(contents);
+        let dragable_response = ui.interact(added_contents.response.rect, item.id(), Sense::drag());
 
-        let response = ui.interact(u.response.rect, item.id(), Sense::drag());
-
-        if response.hovered() {
+        // if pointer hovering above this widget, update pointer icon
+        if dragable_response.hovered() {
             ui.output().cursor_icon = CursorIcon::Grab;
         }
 
-        if response.drag_started() {
-            self.state.drag_delta = Some(
-                u.response.rect.min.to_vec2()
-                    - response
-                        .interact_pointer_pos()
-                        .unwrap_or(Pos2::default())
-                        .to_vec2(),
-            );
+        // if dragging this widget just began, store the intial pointer position relative to the widget origin
+        if dragable_response.drag_started() {
+            let top_left = added_contents.response.rect.min.to_vec2();
+            let pointer_pos = dragable_response
+                .interact_pointer_pos()
+                .unwrap_or(Pos2::default())
+                .to_vec2();
+            self.state.drag_delta = Some(top_left - pointer_pos); // todo just store initial widget center height?
         }
     }
 }
 
 /// [DragDropUi] stores the state of the Drag & Drop list.
+///
+/// `item_ui` should be a function to draw the ui elements for each item in `items`. Its arguments are:
+/// - a mutable reference to the ui
+/// - a `Handle` that can be used to draw the draggable part of the item ui
+/// - the index of the current item in the `items` list
+/// - a reference to the current item in the `items` list
+///
 /// # Example
 /// ```rust
 /// use egui_dnd::DragDropUi;
@@ -113,24 +121,27 @@ impl DragDropUi {
     pub fn ui<'a, T: DragDropItem + 'a>(
         &mut self,
         ui: &mut Ui,
-        values: impl Iterator<Item = &'a mut T>,
-        mut item_ui: impl FnMut(&mut T, &mut Ui, Handle) -> (),
+        items: impl Iterator<Item = &'a T>,
+        mut item_ui: impl FnMut(&mut Ui, Handle, usize, &T) -> (),
     ) -> DragDropResponse {
-        let mut vec = values.enumerate().collect::<Vec<_>>();
+        let mut list = items.enumerate().collect::<Vec<_>>();
 
+        // todo live update? or just internal?
         if let (Some(hovering_idx), Some(source_idx)) = (self.hovering_idx, self.source_idx) {
-            shift_vec(source_idx, hovering_idx, &mut vec);
+            shift_vec(source_idx, hovering_idx, &mut list);
         }
 
-        let mut rects = Vec::with_capacity(vec.len());
+        let mut list_rects = Vec::with_capacity(list.len());
 
-        DragDropUi::drop_target(ui, true, |ui| {
-            vec.iter_mut().for_each(|(idx, item)| {
+        DragDropUi::drop_target(ui, |ui| {
+            list.iter_mut().for_each(|(idx, item)| {
+                // get rect of list entry
                 let rect = self.drag_source(ui, item.id(), |ui, handle| {
-                    item_ui(item, ui, handle);
+                    item_ui(ui, handle, *idx, item);
                 });
-                rects.push((*idx, rect));
+                list_rects.push((*idx, rect));
 
+                // check if this entry is being dragged
                 if ui.memory().is_being_dragged(item.id()) {
                     self.source_idx = Some(*idx);
                 }
@@ -138,51 +149,51 @@ impl DragDropUi {
         });
 
         if ui.memory().is_anything_being_dragged() {
-            let pos = ui.input().pointer.hover_pos();
-
-            if let Some(pos) = pos {
-                let pos = if let Some(delta) = self.drag_delta {
-                    pos + delta
+            // pointer position
+            let pointer_pos = ui.input().pointer.hover_pos();
+            if let Some(pointer_pos) = pointer_pos {
+                let pointer_pos = if let Some(delta) = self.drag_delta {
+                    pointer_pos + delta
                 } else {
-                    pos
+                    pointer_pos
                 };
 
+                // find the closest entry to the pointer position
+                // (absolute y distance to top of entry, new entry index, old entry index, entry rect)
                 let mut closest: Option<(f32, usize, usize, Rect)> = None;
-
-                let _hovering = rects
-                    .into_iter()
-                    .enumerate()
-                    .for_each(|(new_idx, (idx, rect))| {
-                        let dist = (rect.top() - pos.y).abs();
-                        let val = (dist, new_idx, idx, rect);
+                let _hovering = list_rects.into_iter().enumerate().for_each(
+                    |(new_idx, (entry_idx, entry_rect))| {
+                        let entry_dist = (entry_rect.top() - pointer_pos.y).abs(); // todo use center().y instead???
+                        let val = (entry_dist, new_idx, entry_idx, entry_rect);
 
                         if let Some((closest_dist, ..)) = closest {
-                            if closest_dist > dist {
+                            if closest_dist > entry_dist {
                                 closest = Some(val)
                             }
                         } else {
                             closest = Some(val)
                         }
-                    });
+                    },
+                );
 
                 if let Some((_dist, new_idx, _original_idx, rect)) = closest {
-                    let mut i = if pos.y > rect.center().y {
+                    // determine hovering index
+                    let mut i = if pointer_pos.y > rect.center().y {
                         new_idx + 1
                     } else {
                         new_idx
                     };
-
                     if let Some(idx) = self.source_idx {
-                        if i > idx && i < vec.len() {
+                        if i > idx && i < list.len() {
                             i += 1;
                         }
                     }
-
                     self.hovering_idx = Some(i);
                 }
             }
-        }
+        } // (if anything being dragged)
 
+        // return dragging state
         if let (Some(target_idx), Some(source_idx)) = (self.hovering_idx, self.source_idx) {
             if ui.input().pointer.any_released() {
                 self.source_idx = None;
@@ -205,36 +216,31 @@ impl DragDropUi {
                 completed: None,
             };
         }
-
         DragDropResponse {
             current_drag: None,
             completed: None,
         }
     }
 
+    /// Draw the widget using `widget_body` either inline with the gui or hovering depending on if
+    /// its being dragged, then returns its rect.
     fn drag_source(
         &mut self,
         ui: &mut Ui,
         id: Id,
-        drag_body: impl FnOnce(&mut Ui, Handle),
+        item_body: impl FnOnce(&mut Ui, Handle),
     ) -> Rect {
         let is_being_dragged = ui.memory().is_being_dragged(id);
 
         if !is_being_dragged {
-            let scope = ui.scope(|ui| drag_body(ui, Handle { state: self }));
+            // not dragged -> draw widget to ui
+            let scope = ui.scope(|ui| item_body(ui, Handle { state: self }));
             return scope.response.rect;
-
-            // sponse.clicked() {
-            // println!("source clicked")
-            // }
         } else {
             ui.output().cursor_icon = CursorIcon::Grabbing;
 
-            // let response = ui.scope(body).response;
-
-            // Paint the body to a new layer:
+            // draw the body to a new layer
             let _layer_id = LayerId::new(Order::Tooltip, id);
-            // let response = ui.with_layer_id(layer_id, body).response;
 
             // Now we move the visuals of the body to where the mouse is.
             // Normally you need to decide a location for a widget first,
@@ -243,44 +249,33 @@ impl DragDropUi {
             // (anything with `Order::Tooltip` always gets an empty [`Response`])
             // So this is fine!
 
-            // if let Some(pointer_pos) = ui.ctx().pointer_interact_pos() {
-            //     let r = response.rect.center();
-            //
-            //     let delta = pointer_pos - r;
-            //     ui.ctx().translate_layer(layer_id, delta);
-            // }
-
+            // latest pointer position while dragging
             let pointer_pos = ui
                 .ctx()
                 .pointer_interact_pos()
                 .unwrap_or(ui.next_widget_position());
 
-            let u = egui::Area::new("draggable_item")
+            // draw hovering item at pointer position
+            let hovering_item = egui::Area::new("draggable_item")
                 .interactable(false)
                 .fixed_pos(pointer_pos + self.drag_delta.unwrap_or(Vec2::default()))
-                .show(ui.ctx(), |x| {
-                    let rect = x
-                        .scope(|gg| {
-                            //gg.label("dragging meeeee yayyyy")
-
-                            drag_body(gg, Handle { state: self })
-                        })
+                .show(ui.ctx(), |ui_1| {
+                    let item_rect = ui_1
+                        .scope(|ui_2| item_body(ui_2, Handle { state: self }))
                         .response
                         .rect;
 
-                    // allocate space where the item would be
-                    return rect;
+                    return item_rect;
                 });
 
-            return ui.allocate_space(u.inner.size()).1;
+            // allocate space where the item would be
+            let (_id, rect) = ui.allocate_space(hovering_item.inner.size());
+            return rect;
         }
     }
 
-    fn drop_target<R>(
-        ui: &mut Ui,
-        _can_accept_what_is_being_dragged: bool,
-        body: impl FnOnce(&mut Ui) -> R,
-    ) -> InnerResponse<R> {
+    // todo what this for??
+    fn drop_target<R>(ui: &mut Ui, item_body: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
         let margin = Vec2::splat(4.0);
 
         let outer_rect_bounds = ui.available_rect_before_wrap();
@@ -288,7 +283,7 @@ impl DragDropUi {
 
         let mut content_ui = ui.child_ui(inner_rect, *ui.layout());
 
-        let ret = body(&mut content_ui);
+        let ret = item_body(&mut content_ui);
         let outer_rect =
             Rect::from_min_max(outer_rect_bounds.min, content_ui.min_rect().max + margin);
         let (_rect, response) = ui.allocate_at_least(outer_rect.size(), Sense::hover());
