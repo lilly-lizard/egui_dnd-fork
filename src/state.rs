@@ -130,17 +130,17 @@ impl DragDropUi {
         if let (Some(hovering_idx), Some(source_idx)) = (self.hovering_idx, self.source_idx) {
             shift_vec(source_idx, hovering_idx, &mut list);
         }
-        let mut list_rects = Vec::with_capacity(list.len());
+        let mut item_rects = Vec::with_capacity(list.len());
 
         // draw list entries
         let this_list_is_drop_target = self.hovering_idx.is_some();
-        DragDropUi::draw_list(ui, this_list_is_drop_target, |ui| {
+        let list_response = DragDropUi::draw_list(ui, this_list_is_drop_target, |ui| {
             list.iter_mut().for_each(|(idx, item)| {
                 // get rect of list entry
                 let rect = self.draw_item(ui, item.id(), |ui, handle| {
                     item_ui(ui, handle, *idx, item);
                 });
-                list_rects.push((*idx, rect));
+                item_rects.push((*idx, rect));
 
                 // check if this entry is being dragged
                 if ui.memory().is_being_dragged(item.id()) {
@@ -148,10 +148,13 @@ impl DragDropUi {
                 }
             });
         });
+        let list_hovered_over = list_response.response.hovered();
 
         // determine hovering index
-        if ui.memory().is_anything_being_dragged() {
-            self.hovering_idx = self.determine_hovering_index(ui, list.len(), list_rects);
+        if self.source_idx.is_some() && list_hovered_over {
+            self.hovering_idx = self.determine_hovering_index(ui, list.len(), item_rects);
+        } else {
+            self.hovering_idx = None;
         }
 
         // return dragging state
@@ -244,13 +247,13 @@ impl DragDropUi {
 
         let mut content_ui = ui.child_ui(inner_rect, *ui.layout());
 
-        let ret = list_body(&mut content_ui);
+        let body_ret = list_body(&mut content_ui);
         let outer_rect =
             Rect::from_min_max(outer_rect_bounds.min, content_ui.min_rect().max + margin);
         let (rect, response) = ui.allocate_at_least(outer_rect.size(), Sense::hover());
 
         // determine list coloring depending on wherever this list is currently the drop target
-        let style = if is_drop_target {
+        let style = if is_drop_target && response.hovered() {
             ui.visuals().widgets.active
         } else {
             ui.visuals().widgets.inactive
@@ -266,14 +269,14 @@ impl DragDropUi {
             },
         );
 
-        InnerResponse::new(ret, response)
+        InnerResponse::new(body_ret, response)
     }
 
     fn determine_hovering_index(
         &self,
         ui: &Ui,
         list_len: usize,
-        list_rects: Vec<(usize, Rect)>,
+        item_rects: Vec<(usize, Rect)>,
     ) -> Option<usize> {
         let mut hovering_index: Option<usize> = None;
 
@@ -286,10 +289,12 @@ impl DragDropUi {
                 pointer_pos
             };
 
+            // todo if pointer within list rect
+
             // find the closest entry to the pointer position
             // (absolute y distance to top of entry, new entry index, old entry index, entry rect)
             let mut closest: Option<(f32, usize, usize, Rect)> = None;
-            let _hovering = list_rects.into_iter().enumerate().for_each(
+            let _hovering = item_rects.into_iter().enumerate().for_each(
                 |(new_idx, (entry_idx, entry_rect))| {
                     let entry_dist = (entry_rect.top() - pointer_pos.y).abs(); // todo use center().y instead???
                     let val = (entry_dist, new_idx, entry_idx, entry_rect);
