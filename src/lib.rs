@@ -38,23 +38,15 @@ impl<T: Hash> DragableItem for T {
 ///
 /// # Example
 /// ```rust
-/// use egui_dnd::DragDropUi;
-/// use eframe::App;
-/// use eframe::egui::Context;
-/// use eframe::Frame;
-/// use eframe::egui::CentralPanel;
-/// use egui_dnd::utils::shift_vec;
-///
 /// struct DnDApp {
 ///     items: Vec<String>,
 ///     dnd: DragDropUi,
 /// }
 ///
-///
 /// impl App for DnDApp {
 ///     fn update(&mut self, ctx: &Context, frame: &mut Frame) {
 ///         CentralPanel::default().show(ctx, |ui| {
-///             let response = self.dnd.ui(ui, self.items.iter_mut(), |item, ui, handle| {
+///             let response = self.dnd.ui(ui, self.items.iter(), |ui, handle, _index, item| {
 ///                 ui.horizontal(|ui| {
 ///                     handle.ui(ui, item, |ui| {
 ///                         ui.label("grab");
@@ -62,8 +54,8 @@ impl<T: Hash> DragableItem for T {
 ///                     ui.label(item.clone());
 ///                 });
 ///             });
-///             if let Some(response) = response.completed {
-///                 shift_vec(response.from, response.to, &mut self.items);
+///             if let DragDropResponse::Completed(drag_indices) = response {
+///                 shift_vec(drag_indices.source, drag_indices.target, &mut self.items);
 ///             }
 ///         });
 ///     }

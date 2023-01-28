@@ -7,7 +7,7 @@ use egui::{Rounding, Ui, Vec2};
 use egui_extras::{Size, StripBuilder};
 
 use egui_dnd::utils::shift_vec;
-use egui_dnd::DragDropUi;
+use egui_dnd::{DragDropResponse, DragDropUi};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
@@ -60,7 +60,7 @@ impl DnDApp {
     fn dnd_ui(&mut self, ui: &mut Ui) {
         let response = self
             .dnd
-            .ui::<Color>(ui, self.items.iter_mut(), |item, ui, handle| {
+            .ui::<Color>(ui, self.items.iter(), |ui, handle, _index, item| {
                 ui.horizontal(|ui| {
                     handle.ui(ui, item, |ui| {
                         let (_id, rect) = ui.allocate_space(Vec2::new(32.0, 32.0));
@@ -71,13 +71,21 @@ impl DnDApp {
                     });
                 });
             });
-        if let Some(response) = response.completed {
-            shift_vec(response.from, response.to, &mut self.items);
-        }
-        if let Some(response) = response.current_drag {
-            self.preview = Some(self.items.clone());
-            shift_vec(response.from, response.to, self.preview.as_mut().unwrap());
-        }
+
+        match response {
+            DragDropResponse::Completed(drag_indices) => {
+                shift_vec(drag_indices.source, drag_indices.target, &mut self.items);
+            }
+            DragDropResponse::CurrentDrag(drag_indices) => {
+                self.preview = Some(self.items.clone());
+                shift_vec(
+                    drag_indices.source,
+                    drag_indices.target,
+                    self.preview.as_mut().unwrap(),
+                );
+            }
+            DragDropResponse::NoDrag => (),
+        };
     }
 }
 

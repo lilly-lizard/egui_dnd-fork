@@ -1,8 +1,9 @@
 use eframe::egui;
 use eframe::egui::{CollapsingHeader, Id, Ui};
 
+use egui_dnd::handle::Handle;
 use egui_dnd::utils::shift_vec;
-use egui_dnd::{DragDropItem, DragDropUi, Handle};
+use egui_dnd::{DragDropResponse, DragDropUi, DragableItem};
 
 pub fn main() -> () {
     let options = eframe::NativeOptions {
@@ -21,7 +22,7 @@ struct SortableItem {
     drag_drop_ui: DragDropUi,
 }
 
-impl DragDropItem for SortableItem {
+impl DragableItem for SortableItem {
     fn id(&self) -> Id {
         Id::new(&self.name)
     }
@@ -82,7 +83,7 @@ impl Default for MyApp {
 }
 
 impl MyApp {
-    fn draw_item(ui: &mut Ui, item: &mut SortableItem, handle: Handle) {
+    fn draw_item(ui: &mut Ui, item: &SortableItem, handle: Handle) {
         handle.ui(ui, item, |ui| {
             ui.label(&item.name);
         });
@@ -95,12 +96,12 @@ impl MyApp {
 
                     let response =
                         item.drag_drop_ui
-                            .ui(ui, children.iter_mut(), |item, ui, handle| {
+                            .ui(ui, children.iter(), |ui, handle, _index, item| {
                                 Self::draw_item(ui, item, handle);
                             });
 
-                    if let Some(response) = response.completed {
-                        shift_vec(response.from, response.to, children);
+                    if let DragDropResponse::Completed(drag_indices) = response {
+                        shift_vec(drag_indices.source, drag_indices.target, children);
                     }
                 });
         };
@@ -110,13 +111,13 @@ impl MyApp {
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            let response = self
-                .drag_drop_ui
-                .ui(ui, self.items.iter_mut(), |item, ui, handle| {
-                    MyApp::draw_item(ui, item, handle);
-                });
-            if let Some(response) = response.completed {
-                shift_vec(response.from, response.to, &mut self.items);
+            let response =
+                self.drag_drop_ui
+                    .ui(ui, self.items.iter(), |ui, handle, _index, item| {
+                        MyApp::draw_item(ui, item, handle);
+                    });
+            if let DragDropResponse::Completed(drag_indices) = response {
+                shift_vec(drag_indices.source, drag_indices.target, &mut self.items);
             }
         });
     }

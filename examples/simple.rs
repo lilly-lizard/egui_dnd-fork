@@ -2,7 +2,7 @@ use eframe::egui::{Context, Id};
 use eframe::{egui, App, Frame, NativeOptions};
 
 use egui_dnd::utils::shift_vec;
-use egui_dnd::{DragDropItem, DragDropUi};
+use egui_dnd::{DragDropResponse, DragDropUi, DragableItem};
 
 struct DnDApp {
     // DragDropUi stores state about the currently dragged item
@@ -29,7 +29,7 @@ struct ItemType {
 }
 
 // We need this to uniquely identify items. You can also implement the Hash trait.
-impl DragDropItem for ItemType {
+impl DragableItem for ItemType {
     fn id(&self) -> Id {
         Id::new(&self.name)
     }
@@ -55,8 +55,8 @@ impl App for DnDApp {
             // After the drag is complete, we get a response containing the old index of the
             // dragged item, as well as the index it was moved to. You can use the
             // shift_vec function as a helper if you store your items in a Vec.
-            if let Some(response) = response.completed {
-                shift_vec(response.from, response.to, &mut self.items);
+            if let DragDropResponse::Completed(drag_indices) = response {
+                shift_vec(drag_indices.source, drag_indices.target, &mut self.items);
             }
         });
     }
