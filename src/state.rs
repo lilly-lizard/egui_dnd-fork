@@ -13,9 +13,10 @@ impl<T: Hash> DragDropItem for T {
     }
 }
 
-pub struct DragDropStatus {
-    pub from: usize,
-    pub to: usize,
+#[derive(Default, Clone)]
+pub struct DragIndices {
+    pub source: usize,
+    pub target: usize,
 }
 
 /// DragDropStatus containing the potential list updates during and after a drag & drop event
@@ -23,15 +24,15 @@ pub struct DragDropStatus {
 /// used update some state while the drag is in progress.
 /// `completed` contains a [DragDropStatus] after a successful drag & drop event. It should be used to
 /// update positions of the affected items. If the source is a vec, [shift_vec] can be used.
-pub struct DragDropResponse {
-    pub current_drag: Option<DragDropStatus>,
-    pub completed: Option<DragDropStatus>,
+pub enum DragDropResponse {
+    NoDrag,
+    CurrentDrag(DragIndices),
+    Completed(DragIndices),
 }
 
 #[derive(Default, Clone)]
 pub struct DragDropUi {
-    source_idx: Option<usize>,
-    hovering_idx: Option<usize>, // todo bug when you drop outside list!! e.g. target within source option. clean this whole deal up mane...
+    drag_indices: Option<DragIndices>,
     /// Pointer position relative to the origin of the dragged widget when dragging began
     drag_delta: Option<Vec2>,
 }
@@ -133,13 +134,13 @@ impl DragDropUi {
     ) -> DragDropResponse {
         // internal list representation shifted according to previous hover state
         let mut list = items.enumerate().collect::<Vec<_>>();
-        if let (Some(hovering_idx), Some(source_idx)) = (self.hovering_idx, self.source_idx) {
-            shift_vec(source_idx, hovering_idx, &mut list);
+        if let Some(drag_indices) = self.drag_indices.clone() {
+            shift_vec(drag_indices.source, drag_indices.target, &mut list);
         }
         let mut item_rects = Vec::with_capacity(list.len());
 
         // draw list entries
-        let this_list_is_drop_target = self.hovering_idx.is_some();
+        let this_list_is_drop_target = self.drag_indices.is_some();
         let list_response = DragDropUi::draw_list(ui, this_list_is_drop_target, |ui| {
             list.iter_mut().for_each(|(idx, item)| {
                 // get rect of list entry
@@ -150,46 +151,36 @@ impl DragDropUi {
 
                 // check if this entry is being dragged
                 if ui.memory().is_being_dragged(item.id()) {
-                    self.source_idx = Some(*idx);
+                    self.set_source_index(*idx);
                 }
             });
         });
-        let list_hovered_over = list_response.hovered();
 
-        // determine hovering index
-        if self.source_idx.is_some() && list_hovered_over {
-            self.hovering_idx = self.determine_hovering_index(ui, list.len(), item_rects);
-        } else {
-            self.hovering_idx = None;
+        // determine target index
+        let list_hovered_over = list_response.hovered();
+        let hovering_idx = self.determine_hovering_index(ui, list.len(), item_rects);
+        if let Some(drag_indices) = &mut self.drag_indices {
+            if list_hovered_over && hovering_idx.is_some() {
+                // pending [if-let chains](https://github.com/rust-lang/rfcs/blob/master/text/2497-if-let-chains.md#rollout-plan-and-transitioning-to-rust-2018)...
+                drag_indices.target = hovering_idx.expect("checked for some in previous line");
+            } else {
+                // no index being hovered over -> no target
+                drag_indices.target = drag_indices.source;
+            }
         }
 
         // return dragging state
-        if let (Some(target_idx), Some(source_idx)) = (self.hovering_idx, self.source_idx) {
+        if let Some(drag_indices) = self.drag_indices.clone() {
+            // dragging finished
             if ui.input().pointer.any_released() {
-                self.source_idx = None;
-                self.hovering_idx = None;
-
-                return DragDropResponse {
-                    completed: Some(DragDropStatus {
-                        from: source_idx,
-                        to: target_idx,
-                    }),
-                    current_drag: None,
-                };
+                self.drag_indices = None;
+                return DragDropResponse::Completed(drag_indices);
             }
 
-            return DragDropResponse {
-                current_drag: Some(DragDropStatus {
-                    from: source_idx,
-                    to: target_idx,
-                }),
-                completed: None,
-            };
+            // dragging in progress
+            return DragDropResponse::CurrentDrag(drag_indices);
         }
-        DragDropResponse {
-            current_drag: None,
-            completed: None,
-        }
+        return DragDropResponse::NoDrag;
     }
 
     /// Draw the widget for an item using `item_body` either inline with the list or hovering depending
@@ -318,17 +309,16 @@ impl DragDropUi {
         response
     }
 
+    /// Determines the index of the list item that has the closest y position to the current pointer
+    /// position. Returns `None` if there is no pointer position (e.g. touch device).
     fn determine_hovering_index(
         &self,
         ui: &Ui,
         list_len: usize,
         item_rects: Vec<(usize, Rect)>,
     ) -> Option<usize> {
-        let mut hovering_index: Option<usize> = None;
-
         // pointer position
-        let pointer_pos = ui.input().pointer.hover_pos();
-        if let Some(pointer_pos) = pointer_pos {
+        if let Some(pointer_pos) = ui.input().pointer.hover_pos() {
             let pointer_pos = if let Some(delta) = self.drag_delta {
                 pointer_pos + delta
             } else {
@@ -355,20 +345,39 @@ impl DragDropUi {
 
             if let Some((_dist, new_idx, _original_idx, rect)) = closest {
                 // determine hovering index
-                let mut i = if pointer_pos.y > rect.center().y {
+                let mut hovering_idx = if pointer_pos.y > rect.center().y {
                     new_idx + 1
                 } else {
                     new_idx
                 };
-                if let Some(idx) = self.source_idx {
-                    if i > idx && i < list_len {
-                        i += 1;
+
+                if let Some(DragIndices {
+                    source: source_idx, ..
+                }) = self.drag_indices
+                {
+                    // account for source being removed
+                    if source_idx < hovering_idx && hovering_idx < list_len {
+                        hovering_idx += 1;
                     }
                 }
-                hovering_index = Some(i);
+
+                return Some(hovering_idx);
             }
         }
+        return None;
+    }
 
-        return hovering_index;
+    fn set_source_index(&mut self, source_idx: usize) {
+        match &mut self.drag_indices {
+            Some(drag_indices) => {
+                drag_indices.source = source_idx;
+            }
+            None => {
+                self.drag_indices = Some(DragIndices {
+                    source: source_idx,
+                    target: source_idx,
+                })
+            }
+        };
     }
 }
