@@ -1,6 +1,4 @@
-use egui::{
-    self, CursorIcon, Id, InnerResponse, LayerId, Order, Pos2, Rect, Sense, Shape, Ui, Vec2,
-};
+use egui::{self, CursorIcon, Id, LayerId, Order, Pos2, Rect, Sense, Shape, Ui, Vec2};
 use std::hash::Hash;
 
 use crate::utils::shift_vec;
@@ -33,7 +31,7 @@ pub struct DragDropResponse {
 #[derive(Default, Clone)]
 pub struct DragDropUi {
     source_idx: Option<usize>,
-    hovering_idx: Option<usize>,
+    hovering_idx: Option<usize>, // todo bug when you drop outside list!! e.g. target within source option. clean this whole deal up mane...
     /// Pointer position relative to the origin of the dragged widget when dragging began
     drag_delta: Option<Vec2>,
 }
@@ -41,10 +39,18 @@ pub struct DragDropUi {
 /// [Handle::ui] is used to draw the drag handle
 pub struct Handle<'a> {
     state: &'a mut DragDropUi,
+    placeholder: bool,
 }
 
+/// The part of the item ui thats draggable. Accessible by the user with the `item_ui` parameter of [`DragDropUi::ui`]
 impl<'a> Handle<'a> {
     pub fn ui<T: DragDropItem>(self, ui: &mut Ui, item: &T, contents: impl FnOnce(&mut Ui)) {
+        if self.placeholder {
+            // if this is meant to be a placeholder ui, dont do the draggable stuff.
+            contents(ui);
+            return;
+        }
+
         // add contents to ui
         let added_contents = ui.scope(contents);
         let dragable_response = ui.interact(added_contents.response.rect, item.id(), Sense::drag());
@@ -61,7 +67,7 @@ impl<'a> Handle<'a> {
                 .interact_pointer_pos()
                 .unwrap_or(Pos2::default())
                 .to_vec2();
-            self.state.drag_delta = Some(top_left - pointer_pos); // todo just store initial widget center height?
+            self.state.drag_delta = Some(top_left - pointer_pos);
         }
     }
 }
@@ -124,7 +130,6 @@ impl DragDropUi {
         ui: &mut Ui,
         items: impl Iterator<Item = &'a T>,
         mut item_ui: impl FnMut(&mut Ui, Handle, usize, &T),
-        drop_place_preview: Option<impl Fn(&mut Ui) -> Rect>, // todo doc
     ) -> DragDropResponse {
         // internal list representation shifted according to previous hover state
         let mut list = items.enumerate().collect::<Vec<_>>();
@@ -138,14 +143,9 @@ impl DragDropUi {
         let list_response = DragDropUi::draw_list(ui, this_list_is_drop_target, |ui| {
             list.iter_mut().for_each(|(idx, item)| {
                 // get rect of list entry
-                let rect = self.draw_item(
-                    ui,
-                    item.id(),
-                    |ui, handle| {
-                        item_ui(ui, handle, *idx, item);
-                    },
-                    &drop_place_preview,
-                );
+                let rect = self.draw_item(ui, item.id(), |ui, handle| {
+                    item_ui(ui, handle, *idx, item);
+                });
                 item_rects.push((*idx, rect));
 
                 // check if this entry is being dragged
@@ -200,14 +200,21 @@ impl DragDropUi {
         &mut self,
         ui: &mut Ui,
         id: Id,
-        item_body: impl FnOnce(&mut Ui, Handle),
-        drop_place_preview: &Option<impl Fn(&mut Ui) -> Rect>,
+        mut item_body: impl FnMut(&mut Ui, Handle),
     ) -> Rect {
         let is_being_dragged = ui.memory().is_being_dragged(id);
 
         if !is_being_dragged {
             // not dragged -> draw widget to ui
-            let scope = ui.scope(|ui| item_body(ui, Handle { state: self }));
+            let scope = ui.scope(|ui| {
+                item_body(
+                    ui,
+                    Handle {
+                        state: self,
+                        placeholder: false,
+                    },
+                )
+            });
             return scope.response.rect;
         }
 
@@ -235,16 +242,36 @@ impl DragDropUi {
             .fixed_pos(pointer_pos + self.drag_delta.unwrap_or(Vec2::default()))
             .show(ui.ctx(), |ui_1| {
                 let item_rect = ui_1
-                    .scope(|ui_2| item_body(ui_2, Handle { state: self }))
+                    .scope(|ui_2| {
+                        item_body(
+                            ui_2,
+                            Handle {
+                                state: self,
+                                placeholder: false,
+                            },
+                        )
+                    })
                     .response
                     .rect;
 
                 return item_rect;
             });
 
-        if let Some(preview_fn) = drop_place_preview {
-            let rect = preview_fn(ui);
-            return rect;
+        if true {
+            //todo
+            let scope = ui.scope(|ui| {
+                // disabled style for placeholder ui
+                ui.add_enabled_ui(false, |ui| {
+                    item_body(
+                        ui,
+                        Handle {
+                            state: self,
+                            placeholder: true,
+                        },
+                    )
+                });
+            });
+            return scope.response.rect;
         } else {
             // allocate space where the item would be
             let (_id, rect) = ui.allocate_space(hovering_item.inner.size());
