@@ -1,10 +1,14 @@
 # egui_dnd-fork
 
-Fork from [egui_dnd](https://github.com/lucasmerlin/egui_dnd) with tweaks for the use-case of the [Goshenite](https://github.com/lilly-lizard/Goshenite) engine. Changes include:
-- comments and variable renaming (to help me as I was reading through the code)
-- `DragDropUi::ui` updated to only require immutable reference to list and also include the list index in the arg `item_ui` 
+Fork from [egui_dnd](https://github.com/lucasmerlin/egui_dnd) with tweaks for the use-case of the [Goshenite](https://github.com/lilly-lizard/Goshenite) engine.
 
-Note: I also found a more expimentatal implimentation of this idea [here](https://github.com/emilk/egui/discussions/1530).
+_Note: I also found a more expimentatal implimentation of this idea [here](https://github.com/emilk/egui/discussions/1530)._
+
+## TODO
+
+- ability to drag and drop between multiple DragDropUi structs
+	- new argument `target_lists: Vec<DragDropUi>`
+	- change the way variable `this_list_is_drop_target` is set
 
 # egui_dnd
 
