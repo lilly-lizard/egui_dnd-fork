@@ -72,11 +72,12 @@ impl<T: Hash> DragableItem for T {
 ///     }));
 /// }
 /// ```
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct DragDropUi {
     drag_indices: Option<DragIndices>,
     /// Pointer position relative to the origin of the dragged widget when dragging began
     drag_delta: Option<Vec2>,
+    pub draw_drop_preview: bool,
 }
 
 impl DragDropUi {
@@ -95,7 +96,7 @@ impl DragDropUi {
 
         // draw list entries
         let this_list_is_drop_target = self.drag_indices.is_some();
-        let list_response = draw_list(ui, this_list_is_drop_target, |ui| {
+        let list_response = Self::draw_list(ui, this_list_is_drop_target, |ui| {
             list.iter_mut().for_each(|(idx, item)| {
                 // get rect of list entry
                 let rect = self.draw_item(ui, item.id(), |ui, handle| {
@@ -135,6 +136,44 @@ impl DragDropUi {
             return DragDropResponse::CurrentDrag(drag_indices);
         }
         return DragDropResponse::NoDrag;
+    }
+
+    /// Draw the list body and todo what other stuff?
+    fn draw_list(
+        ui: &mut Ui,
+        is_drop_target: bool,
+        list_body: impl FnOnce(&mut Ui),
+    ) -> egui::Response {
+        let margin = Vec2::splat(4.0); // todo dpi scaling
+
+        let outer_rect_bounds = ui.available_rect_before_wrap(); // big ol box
+        let inner_rect = outer_rect_bounds.shrink2(margin); // minus margin
+        let where_to_put_background = ui.painter().add(Shape::Noop); // assign background shape before drawing list body
+        let mut content_ui = ui.child_ui(inner_rect, *ui.layout()); // we'll draw list body to child ui thats within margin
+
+        list_body(&mut content_ui);
+        let mut outer_rect = content_ui.min_rect().expand2(margin);
+        outer_rect.max.x = content_ui.max_rect().max.x + margin.x; // expand outer box horizontally for padding
+        let (rect, response) = ui.allocate_at_least(outer_rect.size(), Sense::hover());
+
+        // determine list coloring depending on wherever this list is currently the drop target
+        let style = if is_drop_target && response.hovered() {
+            ui.visuals().widgets.active
+        } else {
+            ui.visuals().widgets.inactive
+        };
+
+        ui.painter().set(
+            where_to_put_background,
+            epaint::RectShape {
+                rounding: style.rounding,
+                fill: style.bg_fill,
+                stroke: style.bg_stroke,
+                rect,
+            },
+        );
+
+        response
     }
 
     /// Draw the widget for an item using `item_body` either inline with the list or hovering depending
@@ -202,8 +241,7 @@ impl DragDropUi {
                 return item_rect;
             });
 
-        if true {
-            //todo
+        if self.draw_drop_preview {
             let scope = ui.scope(|ui| {
                 // disabled style for placeholder ui
                 ui.add_enabled_ui(false, |ui| {
@@ -297,36 +335,12 @@ impl DragDropUi {
     }
 }
 
-/// Draw the list body and todo what other stuff?
-fn draw_list(ui: &mut Ui, is_drop_target: bool, list_body: impl FnOnce(&mut Ui)) -> egui::Response {
-    let margin = Vec2::splat(4.0);
-
-    let outer_rect_bounds = ui.available_rect_before_wrap();
-    let inner_rect = outer_rect_bounds.shrink2(margin);
-    let where_to_put_background = ui.painter().add(Shape::Noop);
-
-    let mut content_ui = ui.child_ui(inner_rect, *ui.layout());
-
-    list_body(&mut content_ui);
-    let outer_rect = Rect::from_min_max(outer_rect_bounds.min, content_ui.min_rect().max + margin);
-    let (rect, response) = ui.allocate_at_least(outer_rect.size(), Sense::hover());
-
-    // determine list coloring depending on wherever this list is currently the drop target
-    let style = if is_drop_target && response.hovered() {
-        ui.visuals().widgets.active
-    } else {
-        ui.visuals().widgets.inactive
-    };
-
-    ui.painter().set(
-        where_to_put_background,
-        epaint::RectShape {
-            rounding: style.rounding,
-            fill: style.bg_fill,
-            stroke: style.bg_stroke,
-            rect,
-        },
-    );
-
-    response
+impl Default for DragDropUi {
+    fn default() -> Self {
+        Self {
+            drag_delta: Default::default(),
+            drag_indices: Default::default(),
+            draw_drop_preview: true,
+        }
+    }
 }
