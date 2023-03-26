@@ -10,7 +10,7 @@ pub fn main() -> () {
         initial_window_size: Some(egui::vec2(320.0, 240.0)),
         ..Default::default()
     };
-    eframe::run_native("DnD", options, Box::new(|_cc| Box::new(MyApp::default())));
+    eframe::run_native("DnD", options, Box::new(|_cc| Box::new(MyApp::default()))).unwrap();
 }
 
 #[derive(Default)]
@@ -94,11 +94,13 @@ impl MyApp {
                 .show(ui, |ui| {
                     ui.label("Content");
 
-                    let response =
-                        item.drag_drop_ui
-                            .ui(ui, children.iter(), |ui, handle, _index, item| {
-                                Self::draw_item(ui, item, handle);
-                            });
+                    let response = item.drag_drop_ui.ui(
+                        ui,
+                        children.iter_mut(),
+                        |ui, handle, _index, item| {
+                            Self::draw_item(ui, item, handle);
+                        },
+                    );
 
                     if let DragDropResponse::Completed(drag_indices) = response {
                         shift_vec(drag_indices.source, drag_indices.target, children);
@@ -113,7 +115,7 @@ impl eframe::App for MyApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             let response =
                 self.drag_drop_ui
-                    .ui(ui, self.items.iter(), |ui, handle, _index, item| {
+                    .ui(ui, self.items.iter_mut(), |ui, handle, _index, item| {
                         MyApp::draw_item(ui, item, handle);
                     });
             if let DragDropResponse::Completed(drag_indices) = response {

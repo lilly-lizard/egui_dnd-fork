@@ -58,19 +58,19 @@ impl Default for DnDApp {
 
 impl DnDApp {
     fn dnd_ui(&mut self, ui: &mut Ui) {
-        let response = self
-            .dnd
-            .ui::<Color>(ui, self.items.iter(), |ui, handle, _index, item| {
-                ui.horizontal(|ui| {
-                    handle.ui(ui, item, |ui| {
-                        let (_id, rect) = ui.allocate_space(Vec2::new(32.0, 32.0));
-                        ui.painter()
-                            .rect_filled(rect, Rounding::same(1.0), item.color);
+        let response =
+            self.dnd
+                .ui::<Color>(ui, self.items.iter_mut(), |ui, handle, _index, item| {
+                    ui.horizontal(|ui| {
+                        handle.ui(ui, item, |ui| {
+                            let (_id, rect) = ui.allocate_space(Vec2::new(32.0, 32.0));
+                            ui.painter()
+                                .rect_filled(rect, Rounding::same(1.0), item.color);
 
-                        ui.heading(&item.name);
+                            ui.heading(&item.name);
+                        });
                     });
                 });
-            });
 
         match response {
             DragDropResponse::Completed(drag_indices) => {
@@ -161,7 +161,8 @@ fn main() {
         "DnD Example App",
         options,
         Box::new(|_a| Box::new(DnDApp::default())),
-    );
+    )
+    .unwrap();
 }
 
 // when compiling to web using trunk.
