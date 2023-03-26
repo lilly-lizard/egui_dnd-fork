@@ -105,7 +105,8 @@ impl DragDropUi {
                 item_rects.push((*idx, rect));
 
                 // check if this entry is being dragged
-                if ui.memory().is_being_dragged(item.id()) {
+                let is_being_dragged = ui.memory(|mem| mem.is_being_dragged(item.id()));
+                if is_being_dragged {
                     self.set_source_index(*idx);
                 }
             });
@@ -127,7 +128,7 @@ impl DragDropUi {
         // return dragging state
         if let Some(drag_indices) = self.drag_indices.clone() {
             // dragging finished
-            if ui.input().pointer.any_released() {
+            if ui.input(|i| i.pointer.any_released()) {
                 self.drag_indices = None;
                 return DragDropResponse::Completed(drag_indices);
             }
@@ -186,7 +187,7 @@ impl DragDropUi {
         id: Id,
         mut item_body: impl FnMut(&mut Ui, Handle),
     ) -> Rect {
-        let is_being_dragged = ui.memory().is_being_dragged(id);
+        let is_being_dragged = ui.memory(|mem| mem.is_being_dragged(id));
 
         if !is_being_dragged {
             // not dragged -> draw widget to ui
@@ -202,7 +203,7 @@ impl DragDropUi {
             return scope.response.rect;
         }
 
-        ui.output().cursor_icon = CursorIcon::Grabbing;
+        ui.ctx().set_cursor_icon(CursorIcon::Grabbing);
 
         // draw the body to a new layer
         let _layer_id = LayerId::new(Order::Tooltip, id);
@@ -271,7 +272,8 @@ impl DragDropUi {
         item_rects: Vec<(usize, Rect)>,
     ) -> Option<usize> {
         // pointer position
-        if let Some(pointer_pos) = ui.input().pointer.hover_pos() {
+        let hover_pos = ui.input(|i| i.pointer.hover_pos());
+        if let Some(pointer_pos) = hover_pos {
             let pointer_pos = if let Some(delta) = self.drag_delta {
                 pointer_pos + delta
             } else {

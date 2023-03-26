@@ -11,14 +11,14 @@ license = "MIT"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-egui = "0.20"
-epaint = { version = "0.20", default-features = false }
+egui = "0.21"
+epaint = { version = "0.21", default-features = false }
 
 [dev-dependencies]
-egui_extras = "0.20.0"
+egui_extras = "0.21"
 color-hex = "0.2.0"
-egui = { version = "0.20.1", features = ["color-hex"] }
-eframe = "0.20.1"
+egui = { version = "0.21", features = ["color-hex"] }
+eframe = "0.21"
 
 [workspace]
 members = ["fancy-example"]

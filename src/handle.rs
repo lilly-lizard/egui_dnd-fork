@@ -22,7 +22,7 @@ impl<'a> Handle<'a> {
 
         // if pointer hovering above this widget, update pointer icon
         if dragable_response.hovered() {
-            ui.output().cursor_icon = CursorIcon::Grab;
+            ui.ctx().set_cursor_icon(CursorIcon::Grab);
         }
 
         // if dragging this widget just began, store the intial pointer position relative to the widget origin
