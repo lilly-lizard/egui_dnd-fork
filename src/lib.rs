@@ -84,8 +84,8 @@ impl DragDropUi {
     pub fn ui<'a, T: DragableItem + 'a>(
         &mut self,
         ui: &mut Ui,
-        items: impl Iterator<Item = &'a mut T>,
-        mut item_ui: impl FnMut(&mut Ui, Handle, usize, &mut T),
+        items: impl Iterator<Item = &'a T>,
+        mut item_ui: impl FnMut(&mut Ui, Handle, usize, &T),
     ) -> DragDropResponse {
         // internal list representation shifted according to previous hover state
         let mut list = items.enumerate().collect::<Vec<_>>();

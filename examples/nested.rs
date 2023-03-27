@@ -83,24 +83,22 @@ impl Default for MyApp {
 }
 
 impl MyApp {
-    fn draw_item(ui: &mut Ui, item: &mut SortableItem, handle: Handle) {
+    fn draw_item(ui: &mut Ui, item: &SortableItem, handle: Handle) {
         handle.ui(ui, item, |ui| {
             ui.label(&item.name);
         });
 
-        if let Some(children) = &mut item.children {
+        if let Some(children) = &item.children {
             CollapsingHeader::new("children")
                 .default_open(true)
                 .show(ui, |ui| {
                     ui.label("Content");
 
-                    let response = item.drag_drop_ui.ui(
-                        ui,
-                        children.iter_mut(),
-                        |ui, handle, _index, item| {
-                            Self::draw_item(ui, item, handle);
-                        },
-                    );
+                    let response =
+                        item.drag_drop_ui
+                            .ui(ui, children.iter(), |ui, handle, _index, item| {
+                                Self::draw_item(ui, item, handle);
+                            });
 
                     if let DragDropResponse::Completed(drag_indices) = response {
                         shift_vec(drag_indices.source, drag_indices.target, children);
@@ -115,7 +113,7 @@ impl eframe::App for MyApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             let response =
                 self.drag_drop_ui
-                    .ui(ui, self.items.iter_mut(), |ui, handle, _index, item| {
+                    .ui(ui, self.items.iter(), |ui, handle, _index, item| {
                         MyApp::draw_item(ui, item, handle);
                     });
             if let DragDropResponse::Completed(drag_indices) = response {
