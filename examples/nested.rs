@@ -2,7 +2,7 @@ use eframe::egui;
 use eframe::egui::{CollapsingHeader, Id, Ui};
 
 use egui_dnd::handle::Handle;
-use egui_dnd::utils::shift_vec;
+use egui_dnd::utils::shift_slice;
 use egui_dnd::{DragDropResponse, DragDropUi, DragableItem};
 
 pub fn main() -> () {
@@ -23,7 +23,7 @@ struct SortableItem {
 }
 
 impl DragableItem for SortableItem {
-    fn id(&self) -> Id {
+    fn egui_id(&self) -> Id {
         Id::new(&self.name)
     }
 }
@@ -101,7 +101,11 @@ impl MyApp {
                             });
 
                     if let DragDropResponse::Completed(drag_indices) = response {
-                        shift_vec(drag_indices.source, drag_indices.target, children);
+                        shift_slice(
+                            drag_indices.source,
+                            drag_indices.target,
+                            children.as_mut_slice(),
+                        );
                     }
                 });
         };
@@ -117,7 +121,7 @@ impl eframe::App for MyApp {
                         MyApp::draw_item(ui, item, handle);
                     });
             if let DragDropResponse::Completed(drag_indices) = response {
-                shift_vec(drag_indices.source, drag_indices.target, &mut self.items);
+                shift_slice(drag_indices.source, drag_indices.target, &mut self.items);
             }
         });
     }

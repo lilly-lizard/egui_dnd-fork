@@ -4,14 +4,15 @@ pub mod utils;
 use egui::{self, CursorIcon, Id, LayerId, Order, Rect, Sense, Shape, Ui, Vec2};
 use handle::Handle;
 use std::hash::Hash;
-use utils::shift_vec;
+use utils::shift_slice;
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Copy)]
 pub struct DragIndices {
     pub source: usize,
     pub target: usize,
 }
 
+#[derive(Clone)]
 pub enum DragDropResponse {
     NoDrag,
     CurrentDrag(DragIndices),
@@ -20,10 +21,10 @@ pub enum DragDropResponse {
 
 pub trait DragableItem {
     /// Unique id to identify an item in the list.
-    fn id(&self) -> Id;
+    fn egui_id(&self) -> Id;
 }
 impl<T: Hash> DragableItem for T {
-    fn id(&self) -> Id {
+    fn egui_id(&self) -> Id {
         Id::new(self)
     }
 }
@@ -89,8 +90,21 @@ impl DragDropUi {
     ) -> DragDropResponse {
         // internal list representation shifted according to previous hover state
         let mut list = items.enumerate().collect::<Vec<_>>();
-        if let Some(drag_indices) = self.drag_indices.clone() {
-            shift_vec(drag_indices.source, drag_indices.target, &mut list);
+
+        let list_len = list.len();
+        if list_len == 0 {
+            return DragDropResponse::NoDrag;
+        }
+
+        if let Some(drag_indices) = self.drag_indices {
+            let shift_res = shift_slice(drag_indices.source, drag_indices.target, &mut list);
+
+            if let Err(_e) = shift_res {
+                // current drag indices are busted!
+                let source = drag_indices.source.min(list_len);
+                let target = drag_indices.target.min(list_len);
+                self.drag_indices = Some(DragIndices { source, target });
+            }
         }
         let mut item_rects = Vec::with_capacity(list.len());
 
@@ -99,13 +113,13 @@ impl DragDropUi {
         let list_response = Self::draw_list(ui, this_list_is_drop_target, |ui| {
             list.iter_mut().for_each(|(idx, item)| {
                 // get rect of list entry
-                let rect = self.draw_item(ui, item.id(), |ui, handle| {
+                let rect = self.draw_item(ui, item.egui_id(), |ui, handle| {
                     item_ui(ui, handle, *idx, item);
                 });
                 item_rects.push((*idx, rect));
 
                 // check if this entry is being dragged
-                let is_being_dragged = ui.memory(|mem| mem.is_being_dragged(item.id()));
+                let is_being_dragged = ui.memory(|mem| mem.is_being_dragged(item.egui_id()));
                 if is_being_dragged {
                     self.set_source_index(*idx);
                 }
@@ -139,13 +153,13 @@ impl DragDropUi {
         return DragDropResponse::NoDrag;
     }
 
-    /// Draw the list body and todo what other stuff?
+    /// Draw the list body and _todo: what other stuff?_
     fn draw_list(
         ui: &mut Ui,
         is_drop_target: bool,
         list_body: impl FnOnce(&mut Ui),
     ) -> egui::Response {
-        let margin = Vec2::splat(4.0); // todo dpi scaling
+        let margin = Vec2::splat(4.0); // todo dpi scaling?
 
         let outer_rect_bounds = ui.available_rect_before_wrap(); // big ol box
         let inner_rect = outer_rect_bounds.shrink2(margin); // minus margin

@@ -6,7 +6,7 @@ use eframe::{egui, App, Frame};
 use egui::{Rounding, Ui, Vec2};
 use egui_extras::{Size, StripBuilder};
 
-use egui_dnd::utils::shift_vec;
+use egui_dnd::utils::shift_slice;
 use egui_dnd::{DragDropResponse, DragDropUi};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
@@ -74,15 +74,16 @@ impl DnDApp {
 
         match response {
             DragDropResponse::Completed(drag_indices) => {
-                shift_vec(drag_indices.source, drag_indices.target, &mut self.items);
+                shift_slice(drag_indices.source, drag_indices.target, &mut self.items).unwrap();
             }
             DragDropResponse::CurrentDrag(drag_indices) => {
                 self.preview = Some(self.items.clone());
-                shift_vec(
+                shift_slice(
                     drag_indices.source,
                     drag_indices.target,
                     self.preview.as_mut().unwrap(),
-                );
+                )
+                .unwrap();
             }
             DragDropResponse::NoDrag => (),
         };

@@ -18,7 +18,8 @@ impl<'a> Handle<'a> {
 
         // add contents to ui
         let added_contents = ui.scope(contents);
-        let dragable_response = ui.interact(added_contents.response.rect, item.id(), Sense::drag());
+        let dragable_response =
+            ui.interact(added_contents.response.rect, item.egui_id(), Sense::drag());
 
         // if pointer hovering above this widget, update pointer icon
         if dragable_response.hovered() {
