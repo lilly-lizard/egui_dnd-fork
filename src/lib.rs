@@ -2,7 +2,7 @@ pub mod handle;
 pub mod utils;
 
 use egui::{self, CursorIcon, Id, LayerId, Order, Rect, Sense, Shape, Ui, Vec2};
-use handle::Handle;
+use handle::DragHandle;
 use std::hash::Hash;
 use utils::shift_slice;
 
@@ -21,10 +21,10 @@ pub enum DragDropResponse {
 
 pub trait DragableItem {
     /// Unique id to identify an item in the list.
-    fn egui_id(&self) -> Id;
+    fn drag_id(&self) -> Id;
 }
 impl<T: Hash> DragableItem for T {
-    fn egui_id(&self) -> Id {
+    fn drag_id(&self) -> Id {
         Id::new(self)
     }
 }
@@ -33,7 +33,7 @@ impl<T: Hash> DragableItem for T {
 ///
 /// `item_ui` should be a function to draw the ui elements for each item in `items`. Its arguments are:
 /// - a mutable reference to the ui
-/// - a `Handle` that can be used to draw the draggable part of the item ui
+/// - a `DragHandle` that can be used to draw the draggable part of the item ui
 /// - the index of the current item in the `items` list
 /// - a reference to the current item in the `items` list
 ///
@@ -82,11 +82,13 @@ pub struct DragDropUi {
 }
 
 impl DragDropUi {
-    pub fn ui<'a, T: DragableItem + 'a>(
+    /// Draws the list of `items` to `ui` using `item_ui` for each item in the list. Returns the
+    /// dragging response (to be actioned by the caller).
+    pub fn list_ui<'a, T: DragableItem + 'a>(
         &mut self,
         ui: &mut Ui,
         items: impl Iterator<Item = &'a T>,
-        mut item_ui: impl FnMut(&mut Ui, Handle, usize, &T),
+        mut item_ui: impl FnMut(&mut Ui, DragHandle, usize, &T),
     ) -> DragDropResponse {
         // internal list representation shifted according to previous hover state
         let mut list = items.enumerate().collect::<Vec<_>>();
@@ -113,13 +115,13 @@ impl DragDropUi {
         let list_response = Self::draw_list(ui, this_list_is_drop_target, |ui| {
             list.iter_mut().for_each(|(idx, item)| {
                 // get rect of list entry
-                let rect = self.draw_item(ui, item.egui_id(), |ui, handle| {
+                let rect = self.draw_item(ui, item.drag_id(), |ui, handle| {
                     item_ui(ui, handle, *idx, item);
                 });
                 item_rects.push((*idx, rect));
 
                 // check if this entry is being dragged
-                let is_being_dragged = ui.memory(|mem| mem.is_being_dragged(item.egui_id()));
+                let is_being_dragged = ui.memory(|mem| mem.is_being_dragged(item.drag_id()));
                 if is_being_dragged {
                     self.set_source_index(*idx);
                 }
@@ -199,7 +201,7 @@ impl DragDropUi {
         &mut self,
         ui: &mut Ui,
         id: Id,
-        mut item_body: impl FnMut(&mut Ui, Handle),
+        mut item_body: impl FnMut(&mut Ui, DragHandle),
     ) -> Rect {
         let is_being_dragged = ui.memory(|mem| mem.is_being_dragged(id));
 
@@ -208,7 +210,7 @@ impl DragDropUi {
             let scope = ui.scope(|ui| {
                 item_body(
                     ui,
-                    Handle {
+                    DragHandle {
                         state: self,
                         placeholder: false,
                     },
@@ -244,7 +246,7 @@ impl DragDropUi {
                     .scope(|ui_2| {
                         item_body(
                             ui_2,
-                            Handle {
+                            DragHandle {
                                 state: self,
                                 placeholder: false,
                             },
@@ -262,7 +264,7 @@ impl DragDropUi {
                 ui.add_enabled_ui(false, |ui| {
                     item_body(
                         ui,
-                        Handle {
+                        DragHandle {
                             state: self,
                             placeholder: true,
                         },

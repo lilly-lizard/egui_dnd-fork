@@ -23,7 +23,7 @@ struct SortableItem {
 }
 
 impl DragableItem for SortableItem {
-    fn egui_id(&self) -> Id {
+    fn drag_id(&self) -> Id {
         Id::new(&self.name)
     }
 }
@@ -94,11 +94,13 @@ impl MyApp {
                 .show(ui, |ui| {
                     ui.label("Content");
 
-                    let response =
-                        item.drag_drop_ui
-                            .ui(ui, children.iter(), |ui, handle, _index, item| {
-                                Self::draw_item(ui, item, handle);
-                            });
+                    let response = item.drag_drop_ui.list_ui(
+                        ui,
+                        children.iter(),
+                        |ui, handle, _index, item| {
+                            Self::draw_item(ui, item, handle);
+                        },
+                    );
 
                     if let DragDropResponse::Completed(drag_indices) = response {
                         shift_slice(
@@ -117,7 +119,7 @@ impl eframe::App for MyApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             let response =
                 self.drag_drop_ui
-                    .ui(ui, self.items.iter(), |ui, handle, _index, item| {
+                    .list_ui(ui, self.items.iter(), |ui, handle, _index, item| {
                         MyApp::draw_item(ui, item, handle);
                     });
             if let DragDropResponse::Completed(drag_indices) = response {

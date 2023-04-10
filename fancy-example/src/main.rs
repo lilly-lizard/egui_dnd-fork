@@ -58,19 +58,19 @@ impl Default for DnDApp {
 
 impl DnDApp {
     fn dnd_ui(&mut self, ui: &mut Ui) {
-        let response = self
-            .dnd
-            .ui::<Color>(ui, self.items.iter(), |ui, handle, _index, item| {
-                ui.horizontal(|ui| {
-                    handle.ui(ui, item, |ui| {
-                        let (_id, rect) = ui.allocate_space(Vec2::new(32.0, 32.0));
-                        ui.painter()
-                            .rect_filled(rect, Rounding::same(1.0), item.color);
+        let response =
+            self.dnd
+                .list_ui::<Color>(ui, self.items.iter(), |ui, handle, _index, item| {
+                    ui.horizontal(|ui| {
+                        handle.ui(ui, item, |ui| {
+                            let (_id, rect) = ui.allocate_space(Vec2::new(32.0, 32.0));
+                            ui.painter()
+                                .rect_filled(rect, Rounding::same(1.0), item.color);
 
-                        ui.heading(&item.name);
+                            ui.heading(&item.name);
+                        });
                     });
                 });
-            });
 
         match response {
             DragDropResponse::Completed(drag_indices) => {
@@ -196,21 +196,21 @@ fn vertex_gradient(ui: &mut Ui, bg_fill: Color32, gradient: &Gradient) {
         mesh.add_colored_rect(rect, bg_fill);
         ui.painter().add(Shape::mesh(mesh));
     }
-    {
-        let n = gradient.0.len();
-        assert!(n >= 2);
-        let mut mesh = Mesh::default();
-        for (i, &color) in gradient.0.iter().enumerate() {
-            let t = i as f32 / (n as f32 - 1.0);
-            let y = lerp(rect.y_range(), t);
-            mesh.colored_vertex(pos2(rect.left(), y), color);
-            mesh.colored_vertex(pos2(rect.right(), y), color);
-            if i < n - 1 {
-                let i = i as u32;
-                mesh.add_triangle(2 * i, 2 * i + 1, 2 * i + 2);
-                mesh.add_triangle(2 * i + 1, 2 * i + 2, 2 * i + 3);
-            }
+
+    let n = gradient.0.len();
+    assert!(n >= 2);
+    let mut mesh = Mesh::default();
+
+    for (i, &color) in gradient.0.iter().enumerate() {
+        let t = i as f32 / (n as f32 - 1.0);
+        let y = lerp(rect.y_range(), t);
+        mesh.colored_vertex(pos2(rect.left(), y), color);
+        mesh.colored_vertex(pos2(rect.right(), y), color);
+        if i < n - 1 {
+            let i = i as u32;
+            mesh.add_triangle(2 * i, 2 * i + 1, 2 * i + 2);
+            mesh.add_triangle(2 * i + 1, 2 * i + 2, 2 * i + 3);
         }
-        ui.painter().add(Shape::mesh(mesh));
-    };
+    }
+    ui.painter().add(Shape::mesh(mesh));
 }

@@ -30,7 +30,7 @@ struct ItemType {
 
 // We need this to uniquely identify items. You can also implement the Hash trait.
 impl DragableItem for ItemType {
-    fn egui_id(&self) -> Id {
+    fn drag_id(&self) -> Id {
         Id::new(&self.name)
     }
 }
@@ -41,7 +41,7 @@ impl App for DnDApp {
             let response =
                 // make sure this is called in a vertical layout.
                 // Horizontal sorting is not supported yet.
-                self.dnd.ui::<ItemType>(ui, self.items.iter(), |ui, handle, index, item| {
+                self.dnd.list_ui::<ItemType>(ui, self.items.iter(), |ui, handle, index, item| {
                     ui.horizontal(|ui| {
                         // Anything in the handle can be used to drag the item
                         handle.ui(ui, item, |ui| {
