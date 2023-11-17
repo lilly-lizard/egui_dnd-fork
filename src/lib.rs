@@ -2,6 +2,7 @@ pub mod handle;
 pub mod utils;
 
 use egui::{self, CursorIcon, Id, LayerId, Order, Rect, Sense, Shape, Ui, Vec2};
+use epaint::TextureId;
 use handle::DragHandle;
 use std::hash::Hash;
 use utils::shift_slice;
@@ -183,10 +184,13 @@ impl DragDropUi {
         ui.painter().set(
             where_to_put_background,
             epaint::RectShape {
+                rect,
                 rounding: style.rounding,
                 fill: style.bg_fill,
                 stroke: style.bg_stroke,
-                rect,
+                // these values disable texture usage
+                fill_texture_id: TextureId::default(),
+                uv: Rect::ZERO,
             },
         );
 
