@@ -1,13 +1,15 @@
 use eframe::egui;
 use eframe::egui::{CollapsingHeader, Id, Ui};
 
-use egui_dnd::handle::Handle;
+use egui_dnd::handle::DragHandle;
 use egui_dnd::utils::shift_slice;
 use egui_dnd::{DragDropResponse, DragDropUi, DragableItem};
 
 pub fn main() -> () {
     let options = eframe::NativeOptions {
-        initial_window_size: Some(egui::vec2(320.0, 240.0)),
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([320.0, 240.0])
+            .with_drag_and_drop(true),
         ..Default::default()
     };
     eframe::run_native("DnD", options, Box::new(|_cc| Box::new(MyApp::default()))).unwrap();
@@ -83,7 +85,7 @@ impl Default for MyApp {
 }
 
 impl MyApp {
-    fn draw_item(ui: &mut Ui, item: &SortableItem, handle: Handle) {
+    fn draw_item(ui: &mut Ui, item: &SortableItem, handle: DragHandle) {
         handle.ui(ui, item, |ui| {
             ui.label(&item.name);
         });
