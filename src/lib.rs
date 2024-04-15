@@ -1,7 +1,7 @@
 pub mod handle;
 pub mod utils;
 
-use egui::{self, CursorIcon, Id, LayerId, Order, Rect, Sense, Shape, Ui, Vec2};
+use egui::{self, Context, CursorIcon, Id, LayerId, Order, Rect, Sense, Shape, Ui, Vec2};
 use epaint::TextureId;
 use handle::DragHandle;
 use std::hash::Hash;
@@ -87,6 +87,7 @@ impl DragDropUi {
     /// dragging response (to be actioned by the caller).
     pub fn list_ui<'a, T: DragableItem + 'a>(
         &mut self,
+        context: &Context,
         ui: &mut Ui,
         items: impl Iterator<Item = &'a T>,
         mut item_ui: impl FnMut(&mut Ui, DragHandle, usize, &T),
@@ -116,13 +117,13 @@ impl DragDropUi {
         let list_response = Self::draw_list(ui, this_list_is_drop_target, |ui| {
             list.iter_mut().for_each(|(idx, item)| {
                 // get rect of list entry
-                let rect = self.draw_item(ui, item.drag_id(), |ui, handle| {
+                let rect = self.draw_item(context, ui, item.drag_id(), |ui, handle| {
                     item_ui(ui, handle, *idx, item);
                 });
                 item_rects.push((*idx, rect));
 
                 // check if this entry is being dragged
-                let is_being_dragged = ui.memory(|mem| mem.is_being_dragged(item.drag_id()));
+                let is_being_dragged = context.is_being_dragged(item.drag_id());
                 if is_being_dragged {
                     self.set_source_index(*idx);
                 }
@@ -203,11 +204,12 @@ impl DragDropUi {
     /// a blank area is reserved in place.
     fn draw_item(
         &mut self,
+        context: &Context,
         ui: &mut Ui,
         id: Id,
         mut item_body: impl FnMut(&mut Ui, DragHandle),
     ) -> Rect {
-        let is_being_dragged = ui.memory(|mem| mem.is_being_dragged(id));
+        let is_being_dragged = context.is_being_dragged(id);
 
         if !is_being_dragged {
             // not dragged -> draw widget to ui
@@ -242,7 +244,7 @@ impl DragDropUi {
             .unwrap_or(ui.next_widget_position());
 
         // draw hovering item at pointer position
-        let hovering_item = egui::Area::new("draggable_item")
+        let hovering_item = egui::Area::new("draggable_item".into())
             .interactable(false)
             .fixed_pos(pointer_pos + self.drag_delta.unwrap_or(Vec2::default()))
             .show(ui.ctx(), |ui_1| {
