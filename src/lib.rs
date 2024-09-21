@@ -168,7 +168,8 @@ impl DragDropUi {
         let outer_rect_bounds = ui.available_rect_before_wrap(); // big ol box
         let inner_rect = outer_rect_bounds.shrink2(margin); // minus margin
         let where_to_put_background = ui.painter().add(Shape::Noop); // assign background shape before drawing list body
-        let mut content_ui = ui.child_ui(inner_rect, *ui.layout()); // we'll draw list body to child ui thats within margin
+        let mut content_ui = ui.child_ui(inner_rect, *ui.layout(), None); // we'll draw list body to child ui thats within margin
+                                                                          //let mut content_ui = ui.new_child(ui_builder);
 
         list_body(&mut content_ui);
         let mut outer_rect = content_ui.min_rect().expand2(margin);
@@ -189,6 +190,7 @@ impl DragDropUi {
                 rounding: style.rounding,
                 fill: style.bg_fill,
                 stroke: style.bg_stroke,
+                blur_width: 0.0,
                 // these values disable texture usage
                 fill_texture_id: TextureId::default(),
                 uv: Rect::ZERO,
